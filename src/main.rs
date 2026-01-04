@@ -34,7 +34,8 @@ async fn main() -> miette::Result<()> {
                         } else {
                             req.uri().path()
                         };
-                        tracing::info_span!("request", path)
+                        let request_id = uuid::Uuid::new_v4();
+                        tracing::info_span!("request", path, %request_id)
                     })
                     .on_request(|_req: &axum::http::Request<_>, _span: &tracing::Span| {
                         tracing::info!("started request");
