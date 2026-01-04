@@ -21,7 +21,37 @@ async fn main() -> miette::Result<()> {
         )
         .init();
 
-    let app = axum::Router::new().route("/", axum::routing::get(|| async { "Hello world!" }));
+    let app = axum::Router::new()
+        .route("/", axum::routing::get(|| async { "Hello world!" }))
+        .layer(
+            tower::ServiceBuilder::new().layer(
+                tower_http::trace::TraceLayer::new_for_http()
+                    .make_span_with(|req: &axum::http::Request<_>| {
+                        let path = if let Some(path) =
+                            req.extensions().get::<axum::extract::MatchedPath>()
+                        {
+                            path.as_str()
+                        } else {
+                            req.uri().path()
+                        };
+                        tracing::info_span!("request", path)
+                    })
+                    .on_request(|_req: &axum::http::Request<_>, _span: &tracing::Span| {
+                        tracing::info!("started request");
+                    })
+                    .on_response(
+                        |res: &axum::http::Response<_>,
+                         latency: std::time::Duration,
+                         _span: &tracing::Span| {
+                            tracing::info!(
+                                latency_secs = latency.as_secs_f32(),
+                                response_code = res.status().as_u16(),
+                                "finished request",
+                            );
+                        },
+                    ),
+            ),
+        );
 
     let listener = tokio::net::TcpListener::bind(&args.bind)
         .await
