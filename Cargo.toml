@@ -6,7 +6,9 @@ edition = "2024"
 [dependencies]
 axum = "0.8.8"
 clap = { version = "4.5.54", features = ["derive"] }
+figment = { version = "0.10.19", features = ["env", "toml"] }
 miette = { version = "7.6.0", features = ["fancy"] }
+serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.49.0", features = ["full"] }
 tower = "0.5.2"
 tower-http = { version = "0.6.8", features = ["trace"] }
