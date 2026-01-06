@@ -1,9 +1,17 @@
+use std::sync::Arc;
+
 use clap::Parser;
 use figment::providers::Format as _;
 use miette::IntoDiagnostic as _;
 use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
+use crate::store::HttpStore;
+
+mod app;
 mod config;
+mod models;
+mod response;
+mod store;
 
 #[derive(Debug, Clone, Parser)]
 struct Args {}
@@ -26,8 +34,20 @@ async fn main() -> miette::Result<()> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(DEFAULT_TRACING_DIRECTIVE)),
         )
         .init();
+    let store = match config.upstream_store_url.scheme() {
+        "http" | "https" => HttpStore::new(config.upstream_store_url.clone()),
+        _ => {
+            miette::bail!(
+                "unsupported scheme for upstream store URL: {}",
+                config.upstream_store_url
+            );
+        }
+    };
+    let state = app::AppState {
+        store: Arc::new(store),
+    };
 
-    let app = app().layer(
+    let app = app::router(state).layer(
         tower::ServiceBuilder::new().layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .make_span_with(|req: &axum::http::Request<_>| {
@@ -65,8 +85,4 @@ async fn main() -> miette::Result<()> {
     axum::serve(listener, app).await.into_diagnostic()?;
 
     Ok(())
-}
-
-fn app() -> axum::Router {
-    axum::Router::new().route("/", axum::routing::get(|| async { "Hello world!" }))
 }

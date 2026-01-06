@@ -2,6 +2,8 @@
 pub struct Config {
     #[serde(default = "default_bind_address")]
     pub bind_address: String,
+
+    pub upstream_store_url: url::Url,
 }
 
 fn default_bind_address() -> String {
