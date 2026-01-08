@@ -5,7 +5,7 @@ use figment::providers::Format as _;
 use miette::IntoDiagnostic as _;
 use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
-use crate::store::HttpStore;
+use crate::store::http::HttpStore;
 
 mod app;
 mod config;

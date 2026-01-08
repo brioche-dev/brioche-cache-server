@@ -9,7 +9,7 @@ use reqwest::StatusCode;
 
 use crate::{
     models::{BakeOutput, HashId, ProjectSource},
-    store::HttpStore,
+    store::Store,
 };
 
 pub fn router(state: AppState) -> axum::Router {
@@ -33,7 +33,7 @@ pub fn router(state: AppState) -> axum::Router {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub store: Arc<HttpStore>,
+    pub store: Arc<dyn Store + Send + Sync>,
 }
 
 async fn get_chunk_zst(
