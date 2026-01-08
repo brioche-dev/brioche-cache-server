@@ -1,5 +1,6 @@
 use crate::models::{BakeOutput, HashId, ProjectSource};
 
+pub mod cache;
 pub mod http;
 
 #[async_trait::async_trait]
@@ -27,4 +28,10 @@ pub enum StoreError {
 
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    NestedArc(std::sync::Arc<StoreError>),
 }
