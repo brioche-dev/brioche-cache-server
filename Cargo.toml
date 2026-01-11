@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.100"
 async-trait = "0.1.89"
 axum = { version = "0.8.8", features = ["macros"] }
 bytes = "1.11.0"
@@ -12,7 +13,6 @@ figment = { version = "0.10.19", features = ["env", "toml"] }
 futures = "0.3.31"
 hex = "0.4.3"
 http-body = "1.0.1"
-miette = { version = "7.6.0", features = ["fancy"] }
 pin-project-lite = "0.2.16"
 reqwest = { version = "0.13.1", features = ["json", "stream"] }
 serde = { version = "1.0.228", features = ["derive"] }

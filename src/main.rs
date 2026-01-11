@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use clap::Parser;
 use figment::providers::Format as _;
-use miette::IntoDiagnostic as _;
 use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
 use crate::store::http::HttpStore;
@@ -17,14 +16,13 @@ mod store;
 struct Args {}
 
 #[tokio::main]
-async fn main() -> miette::Result<()> {
+async fn main() -> anyhow::Result<()> {
     let _args = Args::parse();
 
     let config: config::Config = figment::Figment::new()
         .merge(figment::providers::Toml::file("config.toml"))
         .merge(figment::providers::Env::prefixed("BRIOCHE_CACHE_SERVER_"))
-        .extract()
-        .into_diagnostic()?;
+        .extract()?;
 
     const DEFAULT_TRACING_DIRECTIVE: &str = concat!(env!("CARGO_CRATE_NAME"), "=info,warn");
     tracing_subscriber::registry()
@@ -37,7 +35,7 @@ async fn main() -> miette::Result<()> {
     let store = match config.upstream_store_url.scheme() {
         "http" | "https" => HttpStore::new(config.upstream_store_url.clone()),
         _ => {
-            miette::bail!(
+            anyhow::bail!(
                 "unsupported scheme for upstream store URL: {}",
                 config.upstream_store_url
             );
@@ -77,12 +75,10 @@ async fn main() -> miette::Result<()> {
         ),
     );
 
-    let listener = tokio::net::TcpListener::bind(&config.bind_address)
-        .await
-        .into_diagnostic()?;
-    let addr = listener.local_addr().into_diagnostic()?;
+    let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
+    let addr = listener.local_addr()?;
     tracing::info!("listening on {addr}");
-    axum::serve(listener, app).await.into_diagnostic()?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }

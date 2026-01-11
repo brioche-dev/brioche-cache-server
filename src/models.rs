@@ -1,5 +1,3 @@
-use miette::IntoDiagnostic as _;
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HashId([u8; Self::LEN]);
 
@@ -31,10 +29,10 @@ impl std::fmt::Debug for HashId {
 }
 
 impl std::str::FromStr for HashId {
-    type Err = miette::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        miette::ensure!(
+        anyhow::ensure!(
             s.len() == Self::STR_LEN,
             "expected hash to be {} bytes long, was {}",
             Self::STR_LEN,
@@ -42,7 +40,7 @@ impl std::str::FromStr for HashId {
         );
 
         let mut bytes = [0u8; Self::LEN];
-        hex::decode_to_slice(&s, &mut bytes).into_diagnostic()?;
+        hex::decode_to_slice(&s, &mut bytes)?;
         Ok(Self(bytes))
     }
 }

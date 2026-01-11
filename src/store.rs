@@ -20,7 +20,7 @@ pub trait Store {
     async fn get_bake_output(&self, recipe_id: HashId) -> Result<Option<BakeOutput>, StoreError>;
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     #[error(transparent)]
     Url(#[from] url::ParseError),

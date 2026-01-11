@@ -100,14 +100,14 @@ impl std::fmt::Display for ChunkFilename {
 }
 
 impl std::str::FromStr for ChunkFilename {
-    type Err = miette::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some(chunk_id) = s.strip_suffix(".zst") {
             let chunk_id = chunk_id.parse()?;
             Ok(Self::Zst { chunk_id })
         } else {
-            miette::bail!("invalid chunk filename: {s}");
+            anyhow::bail!("invalid chunk filename: {s}");
         }
     }
 }
@@ -146,14 +146,14 @@ impl std::fmt::Display for ArtifactFilename {
 }
 
 impl std::str::FromStr for ArtifactFilename {
-    type Err = miette::Error;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some(artifact_id) = s.strip_suffix(".bar.zst") {
             let artifact_id = artifact_id.parse()?;
             Ok(Self::BarZst { artifact_id })
         } else {
-            miette::bail!("invalid artifact filename: {s}");
+            anyhow::bail!("invalid artifact filename: {s}");
         }
     }
 }
@@ -178,7 +178,7 @@ impl<'de> serde::Deserialize<'de> for ArtifactFilename {
     }
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[derive(Debug, thiserror::Error)]
 enum AppError {
     #[error("error from store")]
     Store(#[from] crate::store::StoreError),
