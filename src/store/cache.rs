@@ -7,6 +7,15 @@ use std::{
 
 use futures::TryStreamExt as _;
 
+/// The dividend for calculating the weight from the bytes for cache entries.
+///
+/// This is required because `moka` currently requires the weigher for cache
+/// entry to return a `u32` value. If we used the number of bytes as the weight
+/// directly, this would limit the max file size to 4 GiB. So we divide the
+/// bytes by a factor so we can represent larger files. Also, this can help
+/// approximate filesystem overhead.
+const BYTES_PER_CACHE_WEIGHT: u64 = 4096;
+
 use crate::{
     models::{BakeOutput, HashId, ProjectSource},
     store::{Store, StoreError},
@@ -27,11 +36,14 @@ impl<S> CacheStore<S> {
             cache_dir: Arc::new(cache_dir.to_path_buf()),
             cached_resources: moka::future::Cache::builder()
                 .weigher(|_, file: &Arc<CacheFile>| {
-                    // Weigh by the file size in megabytes (min. 1 MB)
-                    let size_mb = (file.size / (1024 * 1024)).try_into().unwrap_or(u32::MAX);
-                    size_mb.max(1)
+                    // Divide the file size by `BYTES_PER_CACHE_WEIGHT` so we
+                    // can measure larger file sizes in a `u32`
+                    u32::try_from(file.size.div_ceil(BYTES_PER_CACHE_WEIGHT))
+                        .expect("file size too large to weigh in cache")
                 })
-                .max_capacity(1024 /* 1 GB */)
+                .max_capacity(
+                    (1024 * 1024 * 1024) / BYTES_PER_CACHE_WEIGHT, /* 1 GiB */
+                )
                 .build(),
             cached_project_sources: moka::future::Cache::builder().max_capacity(10_000).build(),
             cached_bake_outputs: moka::future::Cache::builder().max_capacity(10_000).build(),
