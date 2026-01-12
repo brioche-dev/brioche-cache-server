@@ -42,12 +42,8 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    tracing::info!(
-        cache_dir = %config.cache_dir.display(),
-        upstream_store_url = %config.upstream_store_url,
-        "using cache store",
-    );
-    let store = store::cache::CacheStore::new(store, &config.cache_dir);
+    let cache_config = store::cache::CacheStoreConfig::new(config.cache);
+    let store = store::cache::CacheStore::new(store, cache_config);
     let state = app::AppState {
         store: Arc::new(store),
     };

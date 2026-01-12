@@ -7,14 +7,18 @@ pub struct Config {
 
     pub upstream_store_url: url::Url,
 
-    #[serde(default = "default_cache_dir")]
-    pub cache_dir: PathBuf,
+    #[serde(default)]
+    pub cache: CacheConfig,
+}
+
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CacheConfig {
+    pub dir: Option<PathBuf>,
+    pub max_disk_capacity_bytes: Option<u64>,
+    pub max_project_sources: Option<u64>,
+    pub max_bake_outputs: Option<u64>,
 }
 
 fn default_bind_address() -> String {
     "0.0.0.0:3000".to_string()
-}
-
-fn default_cache_dir() -> PathBuf {
-    std::env::temp_dir()
 }

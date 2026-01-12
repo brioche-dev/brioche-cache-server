@@ -17,9 +17,30 @@ use futures::TryStreamExt as _;
 const BYTES_PER_CACHE_WEIGHT: u64 = 4096;
 
 use crate::{
+    config::CacheConfig,
     models::{BakeOutput, HashId, ProjectSource},
     store::{Store, StoreError},
 };
+
+pub struct CacheStoreConfig {
+    pub dir: PathBuf,
+    pub max_disk_capacity_bytes: u64,
+    pub max_project_sources: u64,
+    pub max_bake_outputs: u64,
+}
+
+impl CacheStoreConfig {
+    pub fn new(config: CacheConfig) -> Self {
+        Self {
+            dir: config.dir.unwrap_or_else(std::env::temp_dir),
+            max_disk_capacity_bytes: config
+                .max_disk_capacity_bytes
+                .unwrap_or(1024 * 1024 * 1024 /* 1 GiB */),
+            max_project_sources: config.max_project_sources.unwrap_or(10_000),
+            max_bake_outputs: config.max_bake_outputs.unwrap_or(10_000),
+        }
+    }
+}
 
 pub struct CacheStore<S> {
     store: S,
@@ -30,10 +51,21 @@ pub struct CacheStore<S> {
 }
 
 impl<S> CacheStore<S> {
-    pub fn new(store: S, cache_dir: &Path) -> Self {
+    pub fn new(store: S, config: CacheStoreConfig) -> Self {
+        let max_disk_capacity_weight = config.max_disk_capacity_bytes / BYTES_PER_CACHE_WEIGHT;
+        tracing::info!(
+            cache_dir = %config.dir.display(),
+            max_disk_capacity_bytes = config.max_disk_capacity_bytes,
+            bytes_per_cache_weight = BYTES_PER_CACHE_WEIGHT,
+            max_disk_capacity_weight,
+            "creating new cache store",
+        );
+
+        assert_ne!(max_disk_capacity_weight, 0, "computed cache capacity is 0");
+
         Self {
             store,
-            cache_dir: Arc::new(cache_dir.to_path_buf()),
+            cache_dir: Arc::new(config.dir),
             cached_resources: moka::future::Cache::builder()
                 .weigher(|_, file: &Arc<CacheFile>| {
                     // Divide the file size by `BYTES_PER_CACHE_WEIGHT` so we
@@ -41,12 +73,14 @@ impl<S> CacheStore<S> {
                     u32::try_from(file.size.div_ceil(BYTES_PER_CACHE_WEIGHT))
                         .expect("file size too large to weigh in cache")
                 })
-                .max_capacity(
-                    (1024 * 1024 * 1024) / BYTES_PER_CACHE_WEIGHT, /* 1 GiB */
-                )
+                .max_capacity(max_disk_capacity_weight)
                 .build(),
-            cached_project_sources: moka::future::Cache::builder().max_capacity(10_000).build(),
-            cached_bake_outputs: moka::future::Cache::builder().max_capacity(10_000).build(),
+            cached_project_sources: moka::future::Cache::builder()
+                .max_capacity(config.max_project_sources)
+                .build(),
+            cached_bake_outputs: moka::future::Cache::builder()
+                .max_capacity(config.max_bake_outputs)
+                .build(),
         }
     }
 }
