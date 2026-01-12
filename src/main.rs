@@ -62,13 +62,13 @@ async fn main() -> anyhow::Result<()> {
                     tracing::info_span!("request", path, %request_id)
                 })
                 .on_request(|_req: &axum::http::Request<_>, _span: &tracing::Span| {
-                    tracing::info!("started request");
+                    tracing::debug!("started request");
                 })
                 .on_response(
                     |res: &axum::http::Response<_>,
                      latency: std::time::Duration,
                      _span: &tracing::Span| {
-                        tracing::info!(
+                        tracing::debug!(
                             latency_secs = latency.as_secs_f32(),
                             response_code = res.status().as_u16(),
                             "finished request",
