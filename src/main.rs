@@ -78,10 +78,45 @@ async fn main() -> anyhow::Result<()> {
         ),
     );
 
-    let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
-    let addr = listener.local_addr()?;
-    tracing::info!("listening on {addr}");
-    axum::serve(listener, app).await?;
+    let prometheus = metrics_exporter_prometheus::PrometheusBuilder::new().install_recorder()?;
+    let metrics_app = axum::Router::new().route(
+        "/metrics",
+        axum::routing::get({
+            let prometheus = prometheus.clone();
+            async move || prometheus.render()
+        }),
+    );
+
+    let prometheus_upkeep_fut = async {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            prometheus.run_upkeep();
+        }
+    };
+    let app_server_fut = async {
+        let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
+        let addr = listener.local_addr()?;
+        tracing::info!("listening on {addr}");
+        axum::serve(listener, app).await?;
+        anyhow::Ok(())
+    };
+    let app_metrics_server_fut = async {
+        let listener = tokio::net::TcpListener::bind(&config.bind_metrics_address).await?;
+        let addr = listener.local_addr()?;
+        tracing::info!("listening for metrics on {addr}");
+        axum::serve(listener, metrics_app).await?;
+        anyhow::Ok(())
+    };
+
+    tokio::select! {
+        () = prometheus_upkeep_fut => {},
+        result = app_server_fut => {
+            result?;
+        }
+        result = app_metrics_server_fut => {
+            result?;
+        }
+    };
 
     Ok(())
 }

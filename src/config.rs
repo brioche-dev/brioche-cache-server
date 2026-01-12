@@ -5,6 +5,9 @@ pub struct Config {
     #[serde(default = "default_bind_address")]
     pub bind_address: String,
 
+    #[serde(default = "default_bind_metrics_address")]
+    pub bind_metrics_address: String,
+
     pub upstream_store_url: url::Url,
 
     #[serde(default)]
@@ -21,4 +24,8 @@ pub struct CacheConfig {
 
 fn default_bind_address() -> String {
     "0.0.0.0:3000".to_string()
+}
+
+fn default_bind_metrics_address() -> String {
+    "0.0.0.0:3001".to_string()
 }
