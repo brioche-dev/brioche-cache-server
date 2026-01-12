@@ -256,8 +256,6 @@ async fn create_cache_file(
 
     let size = tokio::io::copy(&mut data, &mut file).await?;
 
-    tracing::info!(%id, size, "created cache file");
-
     Ok(CacheFile { file, size })
 }
 
