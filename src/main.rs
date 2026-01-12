@@ -32,6 +32,8 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(DEFAULT_TRACING_DIRECTIVE)),
         )
         .init();
+    let prometheus = install_prometheus_recorder()?;
+
     let store = match config.upstream_store_url.scheme() {
         "http" | "https" => HttpStore::new(config.upstream_store_url.clone()),
         _ => {
@@ -81,7 +83,6 @@ async fn main() -> anyhow::Result<()> {
             ),
         );
 
-    let prometheus = install_prometheus_recorder()?;
     let metrics_app = axum::Router::new().route(
         "/metrics",
         axum::routing::get({

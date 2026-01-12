@@ -63,10 +63,13 @@ impl<S> CacheStore<S> {
 
         assert_ne!(max_disk_capacity_weight, 0, "computed cache capacity is 0");
 
+        metrics::gauge!("cache_disk_max_bytes").set(config.max_disk_capacity_bytes as f64);
+        metrics::gauge!("cache_disk_max_weight").set(max_disk_capacity_weight as f64);
+
         Self {
             store,
             cache_dir: Arc::new(config.dir),
-            cached_resources: moka::future::Cache::builder()
+            cached_resources: moka::future::Cache::<CacheResourceId, Arc<CacheFile>>::builder()
                 .weigher(|_, file: &Arc<CacheFile>| {
                     // Divide the file size by `BYTES_PER_CACHE_WEIGHT` so we
                     // can measure larger file sizes in a `u32`
@@ -74,6 +77,20 @@ impl<S> CacheStore<S> {
                         .expect("file size too large to weigh in cache")
                 })
                 .max_capacity(max_disk_capacity_weight)
+                .eviction_listener(|key, value, cause| {
+                    let resource = key.variant_label();
+                    metrics::counter!(
+                        "cache_evictions",
+                        "resource" => resource,
+                        "cause" => format!("{cause:?}")
+                    )
+                    .increment(1);
+                    metrics::gauge!("cache_disk_bytes", "resource" => resource)
+                        .decrement(value.size as f64);
+                    metrics::gauge!("cache_disk_weight", "resource" => resource)
+                        .decrement(value.size.div_ceil(BYTES_PER_CACHE_WEIGHT) as f64);
+                    metrics::gauge!("cache_disk_files", "resource" => resource).decrement(1);
+                })
                 .build(),
             cached_project_sources: moka::future::Cache::builder()
                 .max_capacity(config.max_project_sources)
@@ -94,9 +111,12 @@ where
         &self,
         chunk_id: HashId,
     ) -> Result<Option<axum::body::Body>, StoreError> {
+        let cache_key = CacheResourceId::Chunk { chunk_id };
+        let resource = cache_key.variant_label();
+
         let result = self
             .cached_resources
-            .entry(CacheResourceId::Chunk { chunk_id })
+            .entry(cache_key)
             .or_try_insert_with(async {
                 let content = match self.store.get_chunk_zst(chunk_id).await {
                     Ok(Some(content)) => content,
@@ -109,7 +129,7 @@ where
                 };
                 let content = content.into_data_stream().map_err(std::io::Error::other);
                 let content = tokio_util::io::StreamReader::new(content);
-                let file = match create_cache_file(&self.cache_dir, content).await {
+                let file = match create_cache_file(cache_key, &self.cache_dir, content).await {
                     Ok(file) => file,
                     Err(err) => {
                         return Err(Some(Arc::new(err)));
@@ -118,14 +138,32 @@ where
                 Ok(Arc::new(file))
             })
             .await;
+
         let cache_file = match result {
-            Ok(file) => file.into_value(),
+            Ok(entry) => {
+                if entry.is_fresh() {
+                    metrics::counter!("cache_misses", "resource" => resource).increment(1);
+                } else {
+                    metrics::counter!("cache_hits", "resource" => resource).increment(1);
+                }
+                entry.into_value()
+            }
             Err(err) => {
                 match &*err {
                     Some(err) => {
+                        metrics::counter!(
+                            "cache_errors",
+                            "resource" => resource,
+                        )
+                        .increment(1);
                         return Err(StoreError::NestedArc(err.clone()));
                     }
                     None => {
+                        metrics::counter!(
+                            "cache_not_found_accesses",
+                            "resource" => resource,
+                        )
+                        .increment(1);
                         return Ok(None);
                     }
                 };
@@ -144,9 +182,12 @@ where
         &self,
         artifact_id: HashId,
     ) -> Result<Option<axum::body::Body>, StoreError> {
+        let cache_key = CacheResourceId::Artifact { artifact_id };
+        let resource = cache_key.variant_label();
+
         let result = self
             .cached_resources
-            .entry(CacheResourceId::Artifact { artifact_id })
+            .entry(cache_key)
             .or_try_insert_with(async {
                 let content = match self.store.get_artifact_bar_zst(artifact_id).await {
                     Ok(Some(content)) => content,
@@ -159,7 +200,7 @@ where
                 };
                 let content = content.into_data_stream().map_err(std::io::Error::other);
                 let content = tokio_util::io::StreamReader::new(content);
-                let file = match create_cache_file(&self.cache_dir, content).await {
+                let file = match create_cache_file(cache_key, &self.cache_dir, content).await {
                     Ok(file) => file,
                     Err(err) => {
                         return Err(Some(Arc::new(err)));
@@ -169,13 +210,30 @@ where
             })
             .await;
         let cache_file = match result {
-            Ok(file) => file.into_value(),
+            Ok(entry) => {
+                if entry.is_fresh() {
+                    metrics::counter!("cache_misses", "resource" => resource).increment(1);
+                } else {
+                    metrics::counter!("cache_hits", "resource" => resource).increment(1);
+                }
+                entry.into_value()
+            }
             Err(err) => {
                 match &*err {
                     Some(err) => {
+                        metrics::counter!(
+                            "cache_errors",
+                            "resource" => resource,
+                        )
+                        .increment(1);
                         return Err(StoreError::NestedArc(err.clone()));
                     }
                     None => {
+                        metrics::counter!(
+                            "cache_not_found_accesses",
+                            "resource" => resource,
+                        )
+                        .increment(1);
                         return Ok(None);
                     }
                 };
@@ -194,6 +252,8 @@ where
         &self,
         project_id: HashId,
     ) -> Result<Option<ProjectSource>, StoreError> {
+        let resource = "project_source";
+
         let result = self
             .cached_project_sources
             .entry(project_id)
@@ -207,15 +267,38 @@ where
             })
             .await;
         match result {
-            Ok(project_source) => Ok(Some(project_source.into_value())),
+            Ok(entry) => {
+                if entry.is_fresh() {
+                    metrics::counter!("cache_misses", "resource" => resource).increment(1);
+                } else {
+                    metrics::counter!("cache_hits", "resource" => resource).increment(1);
+                }
+                Ok(Some(entry.into_value()))
+            }
             Err(err) => match &*err {
-                Some(err) => Err(StoreError::NestedArc(err.clone())),
-                None => Ok(None),
+                Some(err) => {
+                    metrics::counter!(
+                        "cache_errors",
+                        "resource" => resource,
+                    )
+                    .increment(1);
+                    Err(StoreError::NestedArc(err.clone()))
+                }
+                None => {
+                    metrics::counter!(
+                        "cache_not_found_accesses",
+                        "resource" => resource,
+                    )
+                    .increment(1);
+                    Ok(None)
+                }
             },
         }
     }
 
     async fn get_bake_output(&self, recipe_id: HashId) -> Result<Option<BakeOutput>, StoreError> {
+        let resource = "bake_output";
+
         let result = self
             .cached_bake_outputs
             .entry(recipe_id)
@@ -229,10 +312,31 @@ where
             })
             .await;
         match result {
-            Ok(bake_output) => Ok(Some(bake_output.into_value())),
+            Ok(entry) => {
+                if entry.is_fresh() {
+                    metrics::counter!("cache_misses", "resource" => resource).increment(1);
+                } else {
+                    metrics::counter!("cache_hits", "resource" => resource).increment(1);
+                }
+                Ok(Some(entry.into_value()))
+            }
             Err(err) => match &*err {
-                Some(err) => Err(StoreError::NestedArc(err.clone())),
-                None => Ok(None),
+                Some(err) => {
+                    metrics::counter!(
+                        "cache_errors",
+                        "resource" => resource,
+                    )
+                    .increment(1);
+                    Err(StoreError::NestedArc(err.clone()))
+                }
+                None => {
+                    metrics::counter!(
+                        "cache_not_found_accesses",
+                        "resource" => resource,
+                    )
+                    .increment(1);
+                    Ok(None)
+                }
             },
         }
     }
@@ -244,7 +348,17 @@ enum CacheResourceId {
     Artifact { artifact_id: HashId },
 }
 
+impl CacheResourceId {
+    fn variant_label(&self) -> &'static str {
+        match self {
+            Self::Chunk { .. } => "chunk",
+            Self::Artifact { .. } => "artifact",
+        }
+    }
+}
+
 async fn create_cache_file(
+    resource: CacheResourceId,
     cache_dir: &Path,
     mut data: impl tokio::io::AsyncBufRead + Unpin,
 ) -> Result<CacheFile, StoreError> {
@@ -255,6 +369,12 @@ async fn create_cache_file(
     tokio::fs::remove_file(path).await?;
 
     let size = tokio::io::copy(&mut data, &mut file).await?;
+
+    let resource = resource.variant_label();
+    metrics::gauge!("cache_disk_bytes", "resource" => resource).increment(size as f64);
+    metrics::gauge!("cache_disk_weight", "resource" => resource)
+        .increment(size.div_ceil(BYTES_PER_CACHE_WEIGHT) as f64);
+    metrics::gauge!("cache_disk_files", "resource" => resource).increment(1);
 
     Ok(CacheFile { file, size })
 }
