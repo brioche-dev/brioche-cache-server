@@ -17,7 +17,7 @@ pub struct Config {
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CacheConfig {
     pub dir: Option<PathBuf>,
-    pub max_disk_capacity_bytes: Option<u64>,
+    pub max_disk_capacity: Option<bytesize::ByteSize>,
     pub max_project_sources: Option<u64>,
     pub max_bake_outputs: Option<u64>,
 }

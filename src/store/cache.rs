@@ -24,7 +24,7 @@ use crate::{
 
 pub struct CacheStoreConfig {
     pub dir: PathBuf,
-    pub max_disk_capacity_bytes: u64,
+    pub max_disk_capacity: bytesize::ByteSize,
     pub max_project_sources: u64,
     pub max_bake_outputs: u64,
 }
@@ -33,9 +33,9 @@ impl CacheStoreConfig {
     pub fn new(config: CacheConfig) -> Self {
         Self {
             dir: config.dir.unwrap_or_else(std::env::temp_dir),
-            max_disk_capacity_bytes: config
-                .max_disk_capacity_bytes
-                .unwrap_or(1024 * 1024 * 1024 /* 1 GiB */),
+            max_disk_capacity: config
+                .max_disk_capacity
+                .unwrap_or(bytesize::ByteSize::gb(1)),
             max_project_sources: config.max_project_sources.unwrap_or(10_000),
             max_bake_outputs: config.max_bake_outputs.unwrap_or(10_000),
         }
@@ -52,10 +52,10 @@ pub struct CacheStore<S> {
 
 impl<S> CacheStore<S> {
     pub fn new(store: S, config: CacheStoreConfig) -> Self {
-        let max_disk_capacity_weight = config.max_disk_capacity_bytes / BYTES_PER_CACHE_WEIGHT;
+        let max_disk_capacity_weight = config.max_disk_capacity.as_u64() / BYTES_PER_CACHE_WEIGHT;
         tracing::info!(
             cache_dir = %config.dir.display(),
-            max_disk_capacity_bytes = config.max_disk_capacity_bytes,
+            max_disk_capacity_bytes = config.max_disk_capacity.as_u64(),
             bytes_per_cache_weight = BYTES_PER_CACHE_WEIGHT,
             max_disk_capacity_weight,
             "creating new cache store",
@@ -63,7 +63,7 @@ impl<S> CacheStore<S> {
 
         assert_ne!(max_disk_capacity_weight, 0, "computed cache capacity is 0");
 
-        metrics::gauge!("cache_disk_max_bytes").set(config.max_disk_capacity_bytes as f64);
+        metrics::gauge!("cache_disk_max_bytes").set(config.max_disk_capacity.as_u64() as f64);
         metrics::gauge!("cache_disk_max_weight").set(max_disk_capacity_weight as f64);
 
         Self {
