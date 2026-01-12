@@ -31,7 +31,4 @@ pub enum StoreError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
-
-    #[error(transparent)]
-    NestedArc(std::sync::Arc<StoreError>),
 }

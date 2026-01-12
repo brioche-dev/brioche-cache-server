@@ -18,8 +18,8 @@ pub struct Config {
 pub struct CacheConfig {
     pub dir: Option<PathBuf>,
     pub max_disk_capacity: Option<bytesize::ByteSize>,
-    pub max_project_sources: Option<u64>,
-    pub max_bake_outputs: Option<u64>,
+    pub max_project_sources: Option<usize>,
+    pub max_bake_outputs: Option<usize>,
 }
 
 fn default_bind_address() -> String {
