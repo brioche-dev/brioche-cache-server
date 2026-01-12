@@ -227,6 +227,7 @@ dependencies = [
  "futures",
  "hex",
  "http-body",
+ "metrics",
  "metrics-exporter-prometheus",
  "moka",
  "pin-project-lite",
