@@ -3,10 +3,16 @@ pub struct HashId([u8; Self::LEN]);
 
 impl HashId {
     /// The number of bytes in a hash.
-    const LEN: usize = 32;
+    pub const LEN: usize = 32;
 
     /// The length (in bytes) of a hexadecimal representation of a hash.
     const STR_LEN: usize = Self::LEN * 2;
+}
+
+impl HashId {
+    pub const fn from_bytes(bytes: [u8; Self::LEN]) -> Self {
+        Self(bytes)
+    }
 }
 
 impl std::fmt::Display for HashId {
@@ -65,13 +71,13 @@ impl<'de> serde::Deserialize<'de> for HashId {
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSource {
     pub artifact_hash: HashId,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BakeOutput {
     pub output_hash: HashId,

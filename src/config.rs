@@ -18,7 +18,7 @@ pub struct Config {
     pub cache: CacheConfig,
 }
 
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CacheConfig {
     /// Directory used to store temporary cache files (files are unlinked after
     /// creation, so this is not used for persistence). Defaults to the system's
@@ -51,6 +51,19 @@ pub struct CacheConfig {
     /// cache (for TCP sockets, etc.).
     #[serde(default = "default_min_non_cache_files")]
     pub min_non_cache_files: u64,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            dir: default_cache_dir(),
+            max_disk_capacity: default_max_disk_capacity(),
+            max_project_sources: default_max_project_sources(),
+            max_bake_outputs: default_max_bake_outputs(),
+            min_cache_files: default_min_cache_files(),
+            min_non_cache_files: default_min_non_cache_files(),
+        }
+    }
 }
 
 fn default_bind_address() -> String {
