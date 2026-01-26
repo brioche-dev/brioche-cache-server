@@ -27,7 +27,7 @@ pub struct CacheStore<S> {
 
 impl<S> CacheStore<S> {
     pub fn new(store: S, config: CacheConfig) -> anyhow::Result<Self> {
-        let (soft_limit, _hard_limit) =
+        let (original_soft_limit, hard_limit) =
             rlimit::getrlimit(rlimit::Resource::NOFILE).context("failed to get rlimit")?;
 
         let min_soft_limit = config
@@ -36,9 +36,24 @@ impl<S> CacheStore<S> {
             .unwrap();
 
         anyhow::ensure!(
-            min_soft_limit <= soft_limit,
-            "NOFILE rlimit {soft_limit} is less than the minimum limit of {min_soft_limit} in the config"
+            min_soft_limit <= hard_limit,
+            "NOFILE hard rlimit {hard_limit} is less than the minimum limit of {min_soft_limit} in the config"
         );
+
+        let soft_limit = if original_soft_limit < min_soft_limit {
+            tracing::info!(
+                original_soft_limit,
+                new_soft_limit = min_soft_limit,
+                hard_limit,
+                min_non_cache_files = config.min_non_cache_files,
+                min_cache_files = config.min_cache_files,
+                "increasing NOFILE soft rlimit"
+            );
+            rlimit::increase_nofile_limit(min_soft_limit)
+                .context("failed to increase NOFILE rlimit")?
+        } else {
+            original_soft_limit
+        };
 
         let max_cache_files = soft_limit.checked_sub(config.min_non_cache_files).unwrap();
         let max_cache_files: usize = max_cache_files.try_into().unwrap();
