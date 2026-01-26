@@ -502,10 +502,14 @@ impl http_body::Body for CacheFileBody {
                     Ok(Ok((bytes, file))) => {
                         let read_len: u64 = bytes.len().try_into().unwrap();
 
-                        *this.file = Some(file);
-                        *this.offset = this.offset.checked_add(read_len).unwrap();
+                        if read_len > 0 {
+                            *this.file = Some(file);
+                            *this.offset = this.offset.checked_add(read_len).unwrap();
 
-                        return Poll::Ready(Some(Ok(http_body::Frame::data(bytes))));
+                            return Poll::Ready(Some(Ok(http_body::Frame::data(bytes))));
+                        } else {
+                            return Poll::Ready(None);
+                        }
                     }
                     Err(error) => {
                         return Poll::Ready(Some(Err(error.into())));
@@ -514,11 +518,7 @@ impl http_body::Body for CacheFileBody {
                         return Poll::Ready(Some(Err(error)));
                     }
                 }
-            } else {
-                let Some(file) = this.file.take() else {
-                    return Poll::Ready(Some(Err(anyhow::anyhow!("file handle dropped"))));
-                };
-
+            } else if let Some(file) = this.file.take() {
                 let offset = *this.offset;
                 *this.task = Some(tokio::task::spawn_blocking(move || {
                     let mut buf = [0; 65_536];
@@ -527,12 +527,18 @@ impl http_body::Body for CacheFileBody {
 
                     anyhow::Ok((bytes, file))
                 }));
+            } else {
+                return Poll::Ready(None);
             }
         }
     }
 
     fn size_hint(&self) -> http_body::SizeHint {
         http_body::SizeHint::with_exact(self.cache_file.size)
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.file.is_none() && self.task.is_none()
     }
 }
 
