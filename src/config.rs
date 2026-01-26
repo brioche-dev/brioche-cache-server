@@ -23,16 +23,20 @@ pub struct CacheConfig {
     /// Directory used to store temporary cache files (files are unlinked after
     /// creation, so this is not used for persistence). Defaults to the system's
     /// temporary directory, e.g. `/tmp`.
-    pub dir: Option<PathBuf>,
+    #[serde(default = "default_cache_dir")]
+    pub dir: PathBuf,
 
     /// Max size of all temporary cache files, in bytes.
-    pub max_disk_capacity: Option<bytesize::ByteSize>,
+    #[serde(default = "default_max_disk_capacity")]
+    pub max_disk_capacity: bytesize::ByteSize,
 
     /// Max project sources to keep in memory.
-    pub max_project_sources: Option<usize>,
+    #[serde(default = "default_max_project_sources")]
+    pub max_project_sources: usize,
 
     /// Max bake outputs to keep in memory.
-    pub max_bake_outputs: Option<usize>,
+    #[serde(default = "default_max_bake_outputs")]
+    pub max_bake_outputs: usize,
 }
 
 fn default_bind_address() -> String {
@@ -41,4 +45,20 @@ fn default_bind_address() -> String {
 
 fn default_bind_metrics_address() -> String {
     "0.0.0.0:3001".to_string()
+}
+
+fn default_cache_dir() -> PathBuf {
+    std::env::temp_dir()
+}
+
+fn default_max_disk_capacity() -> bytesize::ByteSize {
+    bytesize::ByteSize::gb(1)
+}
+
+fn default_max_project_sources() -> usize {
+    10_000
+}
+
+fn default_max_bake_outputs() -> usize {
+    10_000
 }

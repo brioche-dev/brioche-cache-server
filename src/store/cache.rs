@@ -15,26 +15,6 @@ use crate::{
     store::{Store, StoreError},
 };
 
-pub struct CacheStoreConfig {
-    pub dir: PathBuf,
-    pub max_disk_capacity: bytesize::ByteSize,
-    pub max_project_sources: usize,
-    pub max_bake_outputs: usize,
-}
-
-impl CacheStoreConfig {
-    pub fn new(config: CacheConfig) -> Self {
-        Self {
-            dir: config.dir.unwrap_or_else(std::env::temp_dir),
-            max_disk_capacity: config
-                .max_disk_capacity
-                .unwrap_or(bytesize::ByteSize::gb(1)),
-            max_project_sources: config.max_project_sources.unwrap_or(10_000),
-            max_bake_outputs: config.max_bake_outputs.unwrap_or(10_000),
-        }
-    }
-}
-
 pub struct CacheStore<S> {
     store: S,
     cache_dir: Arc<PathBuf>,
@@ -45,7 +25,7 @@ pub struct CacheStore<S> {
 }
 
 impl<S> CacheStore<S> {
-    pub fn new(store: S, config: CacheStoreConfig) -> Self {
+    pub fn new(store: S, config: CacheConfig) -> Self {
         tracing::info!(
             cache_dir = %config.dir.display(),
             max_disk_capacity_bytes = config.max_disk_capacity.as_u64(),
