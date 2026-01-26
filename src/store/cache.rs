@@ -2,7 +2,6 @@ use std::{
     os::unix::fs::FileExt as _,
     path::PathBuf,
     sync::{Arc, atomic::AtomicU64},
-    task::Poll,
 };
 
 use anyhow::Context as _;
@@ -167,12 +166,7 @@ where
                 };
             }
         };
-        let body = CacheFileBody {
-            file: Some(cache_file.file.try_clone().await?.into_std().await),
-            offset: 0,
-            task: None,
-            cache_file,
-        };
+        let body = body_from_cache_file(&cache_file).await?;
         Ok(Some(axum::body::Body::new(body)))
     }
 
@@ -247,13 +241,8 @@ where
                 };
             }
         };
-        let body = CacheFileBody {
-            file: Some(cache_file.file.try_clone().await?.into_std().await),
-            offset: 0,
-            task: None,
-            cache_file,
-        };
-        Ok(Some(axum::body::Body::new(body)))
+        let body = body_from_cache_file(&cache_file).await?;
+        Ok(Some(body))
     }
 
     async fn get_project_source(
@@ -456,6 +445,39 @@ async fn create_cache_file<S>(
     })
 }
 
+async fn body_from_cache_file(cache_file: &CacheFile) -> tokio::io::Result<axum::body::Body> {
+    let (body_tx, body_rx) = tokio::sync::mpsc::channel(1);
+    let file = cache_file.file.try_clone().await?.into_std().await;
+
+    tokio::task::spawn_blocking(move || {
+        let mut offset: u64 = 0;
+        let mut buf = [0; 16_384];
+        loop {
+            let result = file.read_at(&mut buf, offset);
+            let send_result = match result {
+                Ok(0) => {
+                    break;
+                }
+                Ok(len) => {
+                    let len_u64: u64 = len.try_into().unwrap();
+
+                    let bytes = bytes::Bytes::copy_from_slice(&buf[..len]);
+                    offset += len_u64;
+
+                    body_tx.blocking_send(Ok(bytes))
+                }
+                Err(error) => body_tx.blocking_send(Err(error)),
+            };
+            if send_result.is_err() {
+                break;
+            }
+        }
+    });
+    let body = tokio_stream::wrappers::ReceiverStream::new(body_rx);
+
+    Ok(axum::body::Body::from_stream(body))
+}
+
 struct CacheFile {
     id: uuid::Uuid,
     resource_id: CacheResourceId,
@@ -469,76 +491,6 @@ impl Drop for CacheFile {
         let resource = self.resource_id.variant_label();
         metrics::gauge!("cache_disk_bytes", "resource" => resource).decrement(self.size as f64);
         metrics::gauge!("cache_disk_files", "resource" => resource).decrement(1);
-    }
-}
-
-pin_project_lite::pin_project! {
-    struct CacheFileBody {
-        #[pin]
-        file: Option<std::fs::File>,
-        offset: u64,
-        #[pin]
-        task: Option<tokio::task::JoinHandle<anyhow::Result<(bytes::Bytes, std::fs::File)>>>,
-        cache_file: Arc<CacheFile>,
-    }
-}
-
-impl http_body::Body for CacheFileBody {
-    type Data = bytes::Bytes;
-
-    type Error = anyhow::Error;
-
-    fn poll_frame(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
-        let mut this = self.project();
-        loop {
-            if let Some(task) = this.task.as_mut().as_pin_mut() {
-                let result = std::task::ready!(task.poll(cx));
-                this.task.as_mut().take();
-
-                match result {
-                    Ok(Ok((bytes, file))) => {
-                        let read_len: u64 = bytes.len().try_into().unwrap();
-
-                        if read_len > 0 {
-                            *this.file = Some(file);
-                            *this.offset = this.offset.checked_add(read_len).unwrap();
-
-                            return Poll::Ready(Some(Ok(http_body::Frame::data(bytes))));
-                        } else {
-                            return Poll::Ready(None);
-                        }
-                    }
-                    Err(error) => {
-                        return Poll::Ready(Some(Err(error.into())));
-                    }
-                    Ok(Err(error)) => {
-                        return Poll::Ready(Some(Err(error)));
-                    }
-                }
-            } else if let Some(file) = this.file.take() {
-                let offset = *this.offset;
-                *this.task = Some(tokio::task::spawn_blocking(move || {
-                    let mut buf = [0; 65_536];
-                    let len = file.read_at(&mut buf, offset)?;
-                    let bytes = bytes::Bytes::copy_from_slice(&buf[..len]);
-
-                    anyhow::Ok((bytes, file))
-                }));
-            } else {
-                return Poll::Ready(None);
-            }
-        }
-    }
-
-    fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact(self.cache_file.size)
-    }
-
-    fn is_end_stream(&self) -> bool {
-        self.file.is_none() && self.task.is_none()
     }
 }
 
