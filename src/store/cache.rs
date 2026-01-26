@@ -5,6 +5,7 @@ use std::{
     task::Poll,
 };
 
+use anyhow::Context as _;
 use futures::TryStreamExt as _;
 use lru::LruCache;
 use tokio::sync::{Mutex, OnceCell};
@@ -25,20 +26,40 @@ pub struct CacheStore<S> {
 }
 
 impl<S> CacheStore<S> {
-    pub fn new(store: S, config: CacheConfig) -> Self {
+    pub fn new(store: S, config: CacheConfig) -> anyhow::Result<Self> {
+        let (soft_limit, _hard_limit) =
+            rlimit::getrlimit(rlimit::Resource::NOFILE).context("failed to get rlimit")?;
+
+        let min_soft_limit = config
+            .min_non_cache_files
+            .checked_add(config.min_cache_files.max(1))
+            .unwrap();
+
+        anyhow::ensure!(
+            min_soft_limit <= soft_limit,
+            "NOFILE rlimit {soft_limit} is less than the minimum limit of {min_soft_limit} in the config"
+        );
+
+        let max_cache_files = soft_limit.checked_sub(config.min_non_cache_files).unwrap();
+        let max_cache_files: usize = max_cache_files.try_into().unwrap();
+
         tracing::info!(
             cache_dir = %config.dir.display(),
             max_disk_capacity_bytes = config.max_disk_capacity.as_u64(),
+            max_cache_files,
+            min_non_cache_files = config.min_non_cache_files,
+            min_cache_files = config.min_cache_files,
             "creating new cache store",
         );
 
         metrics::gauge!("cache_disk_max_bytes").set(config.max_disk_capacity.as_u64() as f64);
+        metrics::gauge!("cache_disk_max_files").set(max_cache_files as f64);
 
-        Self {
+        Ok(Self {
             store,
             capacity_pool: CacheCapacityPool::new(config.max_disk_capacity.as_u64()),
             cache_dir: Arc::new(config.dir),
-            cached_resources: Mutex::new(LruCache::unbounded()),
+            cached_resources: Mutex::new(LruCache::new(max_cache_files.try_into().unwrap())),
             cached_project_sources: Mutex::new(LruCache::new(
                 config
                     .max_project_sources
@@ -51,7 +72,7 @@ impl<S> CacheStore<S> {
                     .try_into()
                     .expect("max_bake_outputs should not be zero"),
             )),
-        }
+        })
     }
 }
 

@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let store = store::cache::CacheStore::new(store, config.cache);
+    let store = store::cache::CacheStore::new(store, config.cache)?;
     let state = app::AppState {
         store: Arc::new(store),
     };

@@ -37,6 +37,20 @@ pub struct CacheConfig {
     /// Max bake outputs to keep in memory.
     #[serde(default = "default_max_bake_outputs")]
     pub max_bake_outputs: usize,
+
+    /// Minimum number of file descriptors that should be used for the cache.
+    ///
+    /// The _maximum_ number of cache file descriptors is derived from the
+    /// process's rlimits and `min_non_cache_files`, so setting this value
+    /// ensures a lower bound. If the soft rlimit is too low, we'll try to raise
+    /// the soft rlimit, or we'll fail with an error.
+    #[serde(default = "default_min_cache_files")]
+    pub min_cache_files: u64,
+
+    /// Minimum number of file descriptors that should _not_ be used for the
+    /// cache (for TCP sockets, etc.).
+    #[serde(default = "default_min_non_cache_files")]
+    pub min_non_cache_files: u64,
 }
 
 fn default_bind_address() -> String {
@@ -61,4 +75,12 @@ fn default_max_project_sources() -> usize {
 
 fn default_max_bake_outputs() -> usize {
     10_000
+}
+
+fn default_min_cache_files() -> u64 {
+    500
+}
+
+fn default_min_non_cache_files() -> u64 {
+    500
 }
