@@ -7,9 +7,14 @@ pub fn fake_hash_id(n: u64) -> HashId {
     HashId::from_bytes(hash_bytes)
 }
 
-pub async fn body_to_string(body: axum::body::Body) -> String {
+pub async fn body_to_bytes(body: axum::body::Body) -> Vec<u8> {
     let bytes = axum::body::to_bytes(body, 10_000_000).await.unwrap();
-    String::from_utf8(bytes.to_vec()).unwrap()
+    bytes.to_vec()
+}
+
+pub async fn body_to_string(body: axum::body::Body) -> String {
+    let bytes = body_to_bytes(body).await;
+    String::from_utf8(bytes).unwrap()
 }
 
 pub struct TestContext {
