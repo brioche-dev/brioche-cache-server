@@ -1,20 +1,12 @@
 use brioche_cache::{
     config::CacheConfig,
-    models::{BakeOutput, HashId, ProjectSource},
+    models::{BakeOutput, ProjectSource},
     store::Store as _,
 };
 
-fn fake_hash_id(n: u64) -> HashId {
-    let bytes = n.to_be_bytes();
-    let mut hash_bytes = [0; HashId::LEN];
-    hash_bytes[(HashId::LEN - bytes.len())..].copy_from_slice(&bytes);
-    HashId::from_bytes(hash_bytes)
-}
+use crate::test_utils::{body_to_string, fake_hash_id};
 
-async fn body_to_string(body: axum::body::Body) -> String {
-    let bytes = axum::body::to_bytes(body, 10_000_000).await.unwrap();
-    String::from_utf8(bytes.to_vec()).unwrap()
-}
+mod test_utils;
 
 #[tokio::test]
 async fn test_cache_chunk() {
