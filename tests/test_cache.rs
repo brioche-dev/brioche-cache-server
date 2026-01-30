@@ -1,22 +1,21 @@
 use brioche_cache::{
-    config::CacheConfig,
     models::{BakeOutput, ProjectSource},
     store::Store as _,
 };
 
-use crate::test_utils::{body_to_string, fake_hash_id};
+use crate::test_utils::{body_to_string, cache_config, fake_hash_id, test_context};
 
 mod test_utils;
 
 #[tokio::test]
 async fn test_cache_chunk() {
+    let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
     let upstream_store =
         brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
     let cache =
-        brioche_cache::store::cache::CacheStore::new(upstream_store, CacheConfig::default())
-            .unwrap();
+        brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
     // Put a chunk in the upstream server
     let chunk_id = fake_hash_id(0x1234);
@@ -40,13 +39,13 @@ async fn test_cache_chunk() {
 
 #[tokio::test]
 async fn test_cache_artifact() {
+    let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
     let upstream_store =
         brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
     let cache =
-        brioche_cache::store::cache::CacheStore::new(upstream_store, CacheConfig::default())
-            .unwrap();
+        brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
     // Put an artifact in the upstream server
     let artifact_id = fake_hash_id(0x1111);
@@ -78,13 +77,13 @@ async fn test_cache_artifact() {
 
 #[tokio::test]
 async fn test_cache_project_source() {
+    let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
     let upstream_store =
         brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
     let cache =
-        brioche_cache::store::cache::CacheStore::new(upstream_store, CacheConfig::default())
-            .unwrap();
+        brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
     // Put a project source in the upstream server
     let project_id = fake_hash_id(0x4321);
@@ -120,13 +119,13 @@ async fn test_cache_project_source() {
 
 #[tokio::test]
 async fn test_cache_bake_output() {
+    let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
     let upstream_store =
         brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
     let cache =
-        brioche_cache::store::cache::CacheStore::new(upstream_store, CacheConfig::default())
-            .unwrap();
+        brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
     // Put a project source in the upstream server
     let recipe_id = fake_hash_id(0x9876);
