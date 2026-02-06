@@ -11,11 +11,17 @@ pub struct Config {
     pub bind_metrics_address: String,
 
     /// The upstream cache store this cache server sits in front of.
-    pub upstream_store_url: url::Url,
+    pub upstream: UpstreamConfig,
 
     /// Configuration for the caching behavior.
     #[serde(default)]
     pub cache: CacheConfig,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UpstreamConfig {
+    /// The upstream cache URL.
+    pub url: url::Url,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

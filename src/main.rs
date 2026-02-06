@@ -28,12 +28,12 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let prometheus = install_prometheus_recorder()?;
 
-    let store = match config.upstream_store_url.scheme() {
-        "http" | "https" => HttpStore::new(config.upstream_store_url.clone()),
+    let store = match config.upstream.url.scheme() {
+        "http" | "https" => HttpStore::new(config.upstream)?,
         _ => {
             anyhow::bail!(
-                "unsupported scheme for upstream store URL: {}",
-                config.upstream_store_url
+                "unsupported scheme for upstream URL: {}",
+                config.upstream.url
             );
         }
     };

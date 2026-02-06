@@ -1,6 +1,7 @@
 use futures::StreamExt as _;
 
 use crate::{
+    config::UpstreamConfig,
     models::{BakeOutput, HashId, ProjectSource},
     store::{Store, StoreError},
 };
@@ -11,11 +12,16 @@ pub struct HttpStore {
 }
 
 impl HttpStore {
-    pub fn new(url: url::Url) -> Self {
-        Self {
-            reqwest: reqwest::Client::new(),
-            url,
-        }
+    pub fn new(config: UpstreamConfig) -> anyhow::Result<Self> {
+        let reqwest = reqwest::Client::builder()
+            .pool_idle_timeout(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(10)
+            .build()?;
+
+        Ok(Self {
+            reqwest,
+            url: config.url,
+        })
     }
 }
 

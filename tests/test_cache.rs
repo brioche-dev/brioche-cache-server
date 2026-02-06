@@ -4,7 +4,9 @@ use brioche_cache::{
     store::Store as _,
 };
 
-use crate::test_utils::{body_to_bytes, body_to_string, cache_config, fake_hash_id, test_context};
+use crate::test_utils::{
+    body_to_bytes, body_to_string, cache_config, fake_hash_id, mockito_http_store, test_context,
+};
 
 mod test_utils;
 
@@ -13,8 +15,7 @@ async fn test_cache_chunk() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let cache =
         brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
@@ -43,8 +44,7 @@ async fn test_cache_artifact() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let cache =
         brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
@@ -81,8 +81,7 @@ async fn test_cache_project_source() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let cache =
         brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
@@ -123,8 +122,7 @@ async fn test_cache_bake_output() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let cache =
         brioche_cache::store::cache::CacheStore::new(upstream_store, cache_config(&ctx)).unwrap();
 
@@ -165,8 +163,7 @@ async fn test_cache_max_project_sources() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let config = CacheConfig {
         max_project_sources: 3,
         ..cache_config(&ctx)
@@ -339,8 +336,7 @@ async fn test_cache_max_bake_outputs() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let config = CacheConfig {
         max_bake_outputs: 3,
         ..cache_config(&ctx)
@@ -497,8 +493,7 @@ async fn test_cache_max_disk_capacity() {
     let ctx = test_context();
     let mut mock_server = mockito::Server::new_async().await;
 
-    let upstream_store =
-        brioche_cache::store::http::HttpStore::new(mock_server.url().parse().unwrap());
+    let upstream_store = mockito_http_store(&mock_server);
     let config = CacheConfig {
         max_disk_capacity: bytesize::ByteSize::b(499),
         ..cache_config(&ctx)

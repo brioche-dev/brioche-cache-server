@@ -1,4 +1,8 @@
-use brioche_cache::{config::CacheConfig, models::HashId};
+use brioche_cache::{
+    config::{CacheConfig, UpstreamConfig},
+    models::HashId,
+    store::http::HttpStore,
+};
 
 pub fn fake_hash_id(n: u64) -> HashId {
     let bytes = n.to_be_bytes();
@@ -25,6 +29,13 @@ pub fn test_context() -> TestContext {
     TestContext {
         cache_dir: std::sync::OnceLock::new(),
     }
+}
+
+pub fn mockito_http_store(mockito: &mockito::Server) -> HttpStore {
+    let config = UpstreamConfig {
+        url: mockito.url().parse().unwrap(),
+    };
+    HttpStore::new(config).unwrap()
 }
 
 pub fn cache_config(ctx: &TestContext) -> CacheConfig {
