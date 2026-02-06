@@ -34,6 +34,9 @@ pub fn test_context() -> TestContext {
 pub fn mockito_http_store(mockito: &mockito::Server) -> HttpStore {
     let config = UpstreamConfig {
         url: mockito.url().parse().unwrap(),
+        http_timeout: None,
+        http_read_timeout: None,
+        http_connect_timeout: None,
     };
     HttpStore::new(config).unwrap()
 }

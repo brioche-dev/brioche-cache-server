@@ -13,10 +13,23 @@ pub struct HttpStore {
 
 impl HttpStore {
     pub fn new(config: UpstreamConfig) -> anyhow::Result<Self> {
-        let reqwest = reqwest::Client::builder()
+        let mut reqwest = reqwest::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(60))
-            .pool_max_idle_per_host(10)
-            .build()?;
+            .pool_max_idle_per_host(10);
+
+        if let Some(timeout) = config.http_timeout {
+            reqwest = reqwest.timeout(timeout);
+        }
+
+        if let Some(timeout) = config.http_read_timeout {
+            reqwest = reqwest.read_timeout(timeout);
+        }
+
+        if let Some(timeout) = config.http_connect_timeout {
+            reqwest = reqwest.connect_timeout(timeout);
+        }
+
+        let reqwest = reqwest.build()?;
 
         Ok(Self {
             reqwest,
