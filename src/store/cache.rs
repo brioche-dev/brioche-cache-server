@@ -473,9 +473,13 @@ async fn body_from_cache_file(cache_file: &CacheFile) -> tokio::io::Result<axum:
             }
         }
     });
-    let body = tokio_stream::wrappers::ReceiverStream::new(body_rx);
 
-    Ok(axum::body::Body::from_stream(body))
+    let body_stream = tokio_stream::wrappers::ReceiverStream::new(body_rx);
+
+    let size_hint = http_body::SizeHint::with_exact(cache_file.size);
+    let body = crate::response::BodyWithSize::new(crate::response::StreamBody::new(body_stream))
+        .with_size_hint(Some(size_hint));
+    Ok(axum::body::Body::new(body))
 }
 
 struct CacheFile {
