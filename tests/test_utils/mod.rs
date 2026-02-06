@@ -1,4 +1,4 @@
-use brioche_cache::{
+use brioche_cache_server::{
     config::{CacheConfig, UpstreamConfig},
     models::HashId,
     store::http::HttpStore,

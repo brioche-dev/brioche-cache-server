@@ -4,7 +4,7 @@ use clap::Parser;
 use figment::providers::Format as _;
 use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
-use brioche_cache::store::http::HttpStore;
+use brioche_cache_server::store::http::HttpStore;
 
 #[derive(Debug, Clone, Parser)]
 struct Args {}
@@ -13,7 +13,7 @@ struct Args {}
 async fn main() -> anyhow::Result<()> {
     let _args = Args::parse();
 
-    let config: brioche_cache::config::Config = figment::Figment::new()
+    let config: brioche_cache_server::config::Config = figment::Figment::new()
         .merge(figment::providers::Toml::file("config.toml"))
         .merge(figment::providers::Env::prefixed("BRIOCHE_CACHE_SERVER_"))
         .extract()?;
@@ -38,12 +38,12 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let store = brioche_cache::store::cache::CacheStore::new(store, config.cache)?;
-    let state = brioche_cache::app::AppState {
+    let store = brioche_cache_server::store::cache::CacheStore::new(store, config.cache)?;
+    let state = brioche_cache_server::app::AppState {
         store: Arc::new(store),
     };
 
-    let app = brioche_cache::app::router(state)
+    let app = brioche_cache_server::app::router(state)
         .layer(axum::middleware::from_fn(request_metrics_middleware))
         .layer(
             tower::ServiceBuilder::new().layer(
