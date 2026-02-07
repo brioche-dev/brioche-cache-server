@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config: brioche_cache_server::config::Config = figment::Figment::new()
         .merge(figment::providers::Toml::file("config.toml"))
-        .merge(figment::providers::Env::prefixed("BRIOCHE_CACHE_SERVER_"))
+        .merge(figment::providers::Env::prefixed("BRIOCHE_CACHE_SERVER_").split("__"))
         .extract()?;
 
     const DEFAULT_TRACING_DIRECTIVE: &str = concat!(env!("CARGO_CRATE_NAME"), "=info,warn");
