@@ -378,10 +378,13 @@ async fn create_cache_file<S>(
     store: &CacheStore<S>,
     mut data: impl tokio::io::AsyncBufRead + Unpin,
 ) -> Result<CacheFile, StoreError> {
-    let path = store.cache_dir.join(format!("cache-file-{id}"));
-
-    let mut file = tokio::fs::File::create_new(&path).await?;
-    tokio::fs::remove_file(path).await?;
+    let cache_dir = store.cache_dir.clone();
+    let mut file = tokio::task::spawn_blocking(move || {
+        let file = tempfile::tempfile_in(&*cache_dir)?;
+        std::io::Result::Ok(tokio::fs::File::from_std(file))
+    })
+    .await
+    .unwrap()?;
 
     let size = tokio::io::copy(&mut data, &mut file).await?;
 
